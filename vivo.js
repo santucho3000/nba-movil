@@ -569,7 +569,8 @@ document.addEventListener("click", async (e) => {
     const v = (k) => caja.querySelector(`[data-m${k}]`).value.trim();
     if (!v("usuario") || !v("clavesb")) return err("Poné tu usuario y contraseña de la web.");
     t.disabled = true; t.textContent = "Probando…";
-    const r = await llamar("movil_cuenta", v("usuario"), v("clavesb"), v("lectura"));
+    let r;
+    try { r = await window.pywebview.api.movil_cuenta(v("usuario"), v("clavesb"), v("lectura")); } catch (e) { r = { ok: false, error: String(e) }; }
     if (!r.ok) { t.disabled = false; t.textContent = "Guardar"; return err(r.error); }
     return pintarMovil();
   }
