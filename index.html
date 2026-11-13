@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stats NBA">
+<meta name="theme-color" content="#09080d">
+<title>Stats NBA</title>
+<style>
+:root {
+  --fondo: #09080d; --panel: #15141b; --panel-2: #1d1c25; --linea: rgba(255,255,255,.07); --borde: rgba(255,255,255,.1);
+  --texto: #f1f0f5; --tenue: #b3b0c0; --apagado: #858195; --acento: #9d8cff; --sobre: #0f0a2a;
+  --verde: #4ade9a; --rojo: #f0605a; --ambar: #f5d063;
+  --vidrio: linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.025));
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; }
+body { font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; color: var(--texto);
+  font-feature-settings: "tnum"; min-height: 100vh; padding: env(safe-area-inset-top) 0 calc(78px + env(safe-area-inset-bottom));
+  background: radial-gradient(600px 380px at 0% -10%, rgba(125,100,255,.22), transparent 62%),
+              radial-gradient(500px 380px at 110% 10%, rgba(255,110,150,.10), transparent 60%), var(--fondo); background-attachment: fixed; }
+button { font: inherit; color: inherit; }
+.cab { padding: 18px 16px 6px; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.cab h1 { margin: 0; font-size: 32px; letter-spacing: -.03em; font-weight: 750; }
+.cab .estado { font-size: 12px; color: var(--apagado); text-align: right; }
+.cab .estado b { color: var(--tenue); font-weight: 600; }
+main { padding: 6px 16px 24px; }
+h2 { font-size: 20px; letter-spacing: -.02em; margin: 22px 2px 10px; font-weight: 700; }
+.t { background: var(--vidrio), var(--panel); border: 1px solid var(--linea); border-radius: 20px; padding: 14px 16px; margin-bottom: 12px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 20px 40px -28px #000; }
+.ap { display: flex; flex-direction: column; gap: 10px; }
+.ap-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.ap-cab b { font-size: 22px; letter-spacing: -.03em; }
+.ap-cab span { color: var(--apagado); font-size: 13px; }
+.barras { display: flex; gap: 4px; }
+.barras i { height: 6px; flex: 1; border-radius: 4px; background: rgba(255,255,255,.12); }
+.barras i.ok { background: var(--verde); } .barras i.mal { background: var(--rojo); } .barras i.peligro { background: var(--ambar); } .barras i.vivo { background: var(--acento); }
+.pata { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 9px 0; border-top: 1px solid var(--linea); }
+.pata:first-of-type { border-top: 0; }
+.pata .n { font-weight: 600; }
+.pata .l { color: var(--tenue); font-size: 13.5px; }
+.pata .v { grid-row: 1 / span 2; grid-column: 2; text-align: right; align-self: center; }
+.pata .v b { font-size: 19px; letter-spacing: -.02em; }
+.pata .v small { display: block; color: var(--apagado); font-size: 12px; }
+.prog { grid-column: 1 / -1; height: 4px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; margin-top: 4px; }
+.prog i { display: block; height: 100%; background: var(--acento); border-radius: 3px; }
+.ok-t { color: var(--verde); } .mal-t { color: var(--rojo); } .amb-t { color: var(--ambar); } .ac-t { color: var(--acento); } .apag { color: var(--apagado); }
+.partidos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pp { padding: 12px; border-radius: 18px; text-align: center; margin: 0; }
+.pp .eq { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 17px; }
+.pp .eq img { width: 30px; height: 30px; }
+.pp .h { font-size: 12.5px; color: var(--tenue); margin-top: 6px; }
+.pp .h.vivo { color: var(--rojo); font-weight: 600; }
+.pp .sc { font-size: 15px; font-weight: 700; }
+.fila { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--linea); }
+.fila:first-child { border-top: 0; }
+.fila .sub { color: var(--apagado); font-size: 12.5px; }
+.ch { font-weight: 700; font-size: 17px; }
+.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.kpi { background: var(--vidrio), var(--panel); border: 1px solid var(--linea); border-radius: 16px; padding: 10px 12px; }
+.kpi:first-child { background: linear-gradient(150deg, rgba(157,140,255,.3), rgba(157,140,255,.05) 70%), var(--panel); border-color: rgba(157,140,255,.28); }
+.kpi small { color: var(--tenue); font-size: 12px; } .kpi b { display: block; font-size: 20px; letter-spacing: -.03em; }
+.chips { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+.chips button { border: 1px solid var(--linea); background: rgba(255,255,255,.05); border-radius: 999px; padding: 6px 12px; white-space: nowrap; font-size: 13.5px; }
+.chips button.si { background: var(--acento); color: var(--sobre); border-color: transparent; font-weight: 600; }
+.motivo { color: var(--apagado); font-size: 12.5px; margin-top: 2px; }
+.vacio { color: var(--apagado); text-align: center; padding: 26px 10px; }
+nav { position: fixed; left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(5, 1fr);
+  background: rgba(30,28,40,.72); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); border: 1px solid var(--borde);
+  border-radius: 24px; padding: 6px; z-index: 5; }
+nav button { background: none; border: 0; padding: 8px 0 6px; border-radius: 18px; font-size: 11.5px; color: var(--tenue); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+nav button svg { width: 22px; height: 22px; }
+nav button.si { background: rgba(157,140,255,.2); color: var(--texto); }
+.login { min-height: 80vh; display: flex; flex-direction: column; justify-content: center; padding: 24px; gap: 14px; }
+.login h1 { font-size: 34px; margin: 0; letter-spacing: -.03em; }
+.login input { font: inherit; font-size: 17px; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--borde); background: rgba(255,255,255,.06); color: var(--texto); }
+.boton { background: linear-gradient(180deg, #b3a6ff, #8f7cff); color: var(--sobre); border: 0; border-radius: 999px; padding: 14px; font-weight: 700; font-size: 16px; }
+.busca { position: sticky; top: 0; z-index: 3; padding: 8px 0 10px; }
+.busca input { width: 100%; font: inherit; font-size: 17px; padding: 12px 14px 12px 40px; border-radius: 14px; border: 1px solid var(--borde); color: var(--texto);
+  background: rgba(40,38,52,.85) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23858195' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-4-4'/%3E%3C/svg%3E") 12px center / 20px no-repeat; backdrop-filter: blur(14px); }
+.res { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid var(--linea); }
+.res:first-child { border-top: 0; }
+.tabla { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tabla th { color: var(--apagado); font-weight: 500; font-size: 12px; text-align: right; padding: 6px 4px; }
+.tabla td { text-align: right; padding: 7px 4px; border-top: 1px solid var(--linea); }
+.tabla th:first-child, .tabla td:first-child, .tabla th:nth-child(2), .tabla td:nth-child(2) { text-align: left; }
+.volver { background: none; border: 0; color: var(--acento); padding: 0; font-size: 15px; margin: 4px 0 0; }
+.aviso { background: rgba(245,208,99,.1); border: 1px solid rgba(245,208,99,.3); color: var(--ambar); border-radius: 14px; padding: 10px 12px; font-size: 13.5px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+// ------------------------------------------------------------------ datos y cifrado
+const [USUARIO, REPO] = (() => { const u = location.hostname.split(".")[0]; const r = location.pathname.split("/").filter(Boolean)[0] || ""; return [u, r]; })();
+const URL_DATOS = `https://api.github.com/repos/${USUARIO}/${REPO}/contents/datos.json?ref=datos`;
+const S = { datos: null, vista: "hoy", espn: {}, boxes: {}, error: null, filtroSen: "todas" };
+const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const leerClave = () => { try { return localStorage.getItem("clave"); } catch (e) { return S.claveMem; } };
+const guardarClave = (c) => { S.claveMem = c; try { c ? localStorage.setItem("clave", c) : localStorage.removeItem("clave"); } catch (e) {} };
+
+async function hmac(k, datos) { return new Uint8Array(await crypto.subtle.sign("HMAC", k, datos)); }
+async function descifrar(caja, clave) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(clave), "PBKDF2", false, ["deriveBits"]);
+  const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: b64(caja.sal), iterations: caja.it }, base, 512));
+  const imp = (b) => crypto.subtle.importKey("raw", b, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const ke = await imp(bits.slice(0, 32)), km = await imp(bits.slice(32));
+  const nonce = b64(caja.nonce), ct = b64(caja.ct);
+  const junto = new Uint8Array(nonce.length + ct.length); junto.set(nonce); junto.set(ct, nonce.length);
+  const mac = await hmac(km, junto), esp = b64(caja.mac);
+  if (mac.length !== esp.length || mac.some((x, i) => x !== esp[i])) throw new Error("clave");
+  const plano = new Uint8Array(ct.length);
+  for (let i = 0, bloque = 0; i < ct.length; bloque++) {
+    const c = new Uint8Array(24); c.set(nonce); new DataView(c.buffer).setBigUint64(16, BigInt(bloque));
+    const f = await hmac(ke, c);
+    for (let j = 0; j < 32 && i < ct.length; j++, i++) plano[i] = ct[i] ^ f[j];
+  }
+  const txt = await new Response(new Blob([plano]).stream().pipeThrough(new DecompressionStream("deflate"))).text();
+  return JSON.parse(txt);
+}
+async function cargar() {
+  const clave = leerClave(); if (!clave) return pintar();
+  try {
+    let r = await fetch(URL_DATOS, { headers: { Accept: "application/vnd.github.raw" }, cache: "no-store" });
+    if (!r.ok) throw new Error("Todavía no hay datos subidos desde la PC.");
+    S.datos = await descifrar(await r.json(), clave); S.error = null;
+  } catch (e) {
+    if (e.message === "clave") { guardarClave(null); S.error = "Contraseña incorrecta."; }
+    else S.error = e.message || "No se pudieron leer los datos.";
+  }
+  pintar(); vivo();
+}
+
+// ------------------------------------------------------------------ ESPN en vivo
+const A_ESPN = { GSW: "GS", NYK: "NY", SAS: "SA", NOP: "NO", UTA: "UTAH", WAS: "WSH" };
+const esp = (t) => A_ESPN[t] || t;
+const norm = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z ]/g, "").replace(/\b(jr|sr|ii|iii|iv)\b/g, "").replace(/\s+/g, " ").trim();
+async function scoreboard(fecha) {
+  const k = fecha.replaceAll("-", "");
+  const d = await fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${k}`, { cache: "no-store" }).then((r) => r.json());
+  S.espn[fecha] = d.events.map((e) => ({ id: e.id, estado: e.status.type.state, detalle: e.status.type.shortDetail, periodo: e.status.period, reloj: e.status.displayClock,
+    eq: Object.fromEntries(e.competitions[0].competitors.map((c) => [c.team.abbreviation, { score: c.score, home: c.homeAway === "home", logo: c.team.logo }])) }));
+}
+async function box(id) {
+  const s = await fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=${id}`, { cache: "no-store" }).then((r) => r.json());
+  const jug = {};
+  for (const eq of s.boxscore?.players || []) for (const g of eq.statistics || []) {
+    const ix = Object.fromEntries(g.keys.map((k, i) => [k, i]));
+    for (const a of g.athletes || []) {
+      if (!a.stats || !a.stats.length) { jug[norm(a.athlete.displayName)] = { dnp: true }; continue; }
+      const n = (k) => parseInt(a.stats[ix[k]], 10) || 0, par = (k) => (a.stats[ix[k]] || "0-0").split("-").map((x) => parseInt(x, 10) || 0);
+      const [fgm, fga] = par("fieldGoalsMade-fieldGoalsAttempted"), [tpm, tpa] = par("threePointFieldGoalsMade-threePointFieldGoalsAttempted");
+      jug[norm(a.athlete.displayName)] = { min: n("minutes"), pts: n("points"), reb: n("rebounds"), ast: n("assists"), stl: n("steals"), blk: n("blocks"),
+        tov: n("turnovers"), pf: n("fouls"), fgm, fga, fg3m: tpm, fg3a: tpa, activo: a.active };
+    }
+  }
+  S.boxes[id] = jug;
+}
+function valor(j, stat) {
+  const c = { pra: ["pts", "reb", "ast"], pr: ["pts", "reb"], pa: ["pts", "ast"], ra: ["reb", "ast"], sb: ["stl", "blk"] }[stat];
+  return c ? c.reduce((s, k) => s + (j[k] || 0), 0) : j[stat];
+}
+function partidoDe(p) {
+  const [v, l] = (p.partido || "").split(" @ ").map((x) => esp(x.trim()));
+  return (S.espn[p.fecha] || []).find((e) => e.eq[v] && e.eq[l]);
+}
+function enVivo(p) {
+  const e = partidoDe(p); if (!e) return null;
+  const j = (S.boxes[e.id] || {})[norm(p.jugador)];
+  const out = { e, j };
+  if (j && !j.dnp && p.linea != null) {
+    const v = valor(j, p.stat); out.v = v;
+    const pasa = p.lado === "menos" ? v < p.linea : v > p.linea;
+    if (e.estado === "post") out.est = pasa ? "ok" : "mal";
+    else if (p.lado !== "menos" && pasa) out.est = "ok";
+    else if (p.lado === "menos" && !pasa) out.est = "mal";
+    else out.est = e.estado === "in" ? ((j.pf || 0) >= 5 ? "peligro" : "vivo") : "";
+  } else if (e.estado === "post") out.est = j && j.dnp ? "nula" : "";
+  return out;
+}
+let timerVivo = null;
+async function vivo() {
+  clearTimeout(timerVivo);
+  const pend = (S.datos?.unidades?.pendientes || []).flatMap((a) => a.piernas.filter((p) => p.estado === "pendiente"));
+  const fechas = [...new Set([...pend.map((p) => p.fecha), hoyNBA()].filter(Boolean))];
+  try {
+    await Promise.all(fechas.map(scoreboard));
+    const ids = new Set(pend.map((p) => partidoDe(p)).filter((e) => e && e.estado !== "pre").map((e) => e.id));
+    await Promise.all([...ids].map(box));
+  } catch (e) {}
+  pintar();
+  const hayVivo = Object.values(S.espn).flat().some((e) => e.estado === "in");
+  timerVivo = setTimeout(vivo, hayVivo ? 20000 : 120000);
+}
+function hoyNBA() {   // la fecha de la NBA (hasta las 6 de la mañana de Argentina sigue siendo "ayer")
+  const d = new Date(Date.now() - 3 * 3600e3 - 6 * 3600e3); return d.toISOString().slice(0, 10);
+}
+
+// ------------------------------------------------------------------ vistas
+const STAT = { pts: "PTS", reb: "REB", ast: "AST", fg3m: "triples", pra: "PRA", pr: "P+R", pa: "P+A", ra: "R+A", stl: "robos", blk: "tapas", tov: "pérdidas", fga: "tiros", fgm: "tiros metidos", fg3a: "triples int.", sb: "rob+tap", dd: "doble-doble", td: "triple-doble" };
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const nf = (x, d = 1) => x == null ? "–" : Number(x).toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = (x) => x == null ? "–" : Math.round(x * 100) + "%";
+const hora = (u) => u ? new Date(u).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : "";
+const lineaTxt = (p) => p.linea == null ? (STAT[p.stat] || p.stat) : `${p.lado === "menos" ? "Menos" : "Más"} de ${nf(p.linea)} ${STAT[p.stat] || p.stat}`;
+
+function tarjetaApuesta(a) {
+  const patas = a.piernas.map((p) => ({ p, x: p.estado === "pendiente" ? enVivo(p) : null }));
+  const est = (o) => o.p.estado === "ganada" ? "ok" : o.p.estado === "perdida" ? "mal" : o.x?.est || "";
+  const cumplidas = patas.filter((o) => est(o) === "ok").length;
+  const muerta = patas.some((o) => est(o) === "mal");
+  return `<div class="t ap"><div class="ap-cab"><div><b>${nf(a.cuota_final || a.cuota, 2)}</b> <span>${nf(a.unidades)} u · ${esc(a.casa || "")}</span></div>
+    <span class="${muerta ? "mal-t" : ""}">${muerta ? "Perdida" : `${cumplidas}/${patas.length}`}</span></div>
+    <div class="barras">${patas.map((o) => `<i class="${est(o)}"></i>`).join("")}</div>
+    <div>${patas.map(({ p, x }) => {
+      const e = x?.e, j = x?.j, meta = p.linea != null ? Math.floor(p.linea) + 1 : null;
+      let der = "";
+      if (p.estado !== "pendiente") der = `<b class="${p.estado === "ganada" ? "ok-t" : "mal-t"}">${p.valor ?? ""}</b><small>${p.estado}</small>`;
+      else if (x?.v != null) der = `<b class="${x.est === "ok" ? "ok-t" : x.est === "mal" ? "mal-t" : ""}">${x.v}</b><small>${e.estado === "post" ? "final" : `${j.min}' · ${j.pf} PF`}</small>`;
+      else if (e) der = `<small>${e.estado === "pre" ? esc(e.detalle.split(" - ").pop()) : j?.dnp ? "no juega" : esc(e.detalle)}</small>`;
+      const prog = x?.v != null && meta && p.lado !== "menos" && e.estado === "in" ? `<div class="prog"><i style="width:${Math.min(100, x.v / meta * 100)}%"></i></div>` : "";
+      return `<div class="pata"><span class="n">${esc(p.jugador)}</span><span class="v">${der}</span>
+        <span class="l">${esc(lineaTxt(p))} · ${esc(p.partido || "")}${e && e.estado === "in" ? ` · <span class="mal-t">${esc(e.detalle)}</span>` : ""}</span>${prog}</div>`;
+    }).join("")}</div></div>`;
+}
+
+function vistaHoy() {
+  const d = S.datos, pend = d.unidades?.pendientes || [];
+  const eventos = S.espn[hoyNBA()] || [];
+  const partidos = (d.partidos || []).map((p) => {
+    const e = eventos.find((x) => x.eq[esp(p.visita.tri)] && x.eq[esp(p.local.tri)]);
+    const sc = (t) => e && e.estado !== "pre" ? `<span class="sc">${e.eq[esp(t)].score}</span>` : "";
+    const logo = (t) => e?.eq[esp(t)]?.logo ? `<img src="${e.eq[esp(t)].logo}" alt="">` : "";
+    return `<div class="t pp"><div class="eq">${logo(p.visita.tri)}<span>${p.visita.tri}</span>${sc(p.visita.tri)}</div>
+      <div class="eq">${logo(p.local.tri)}<span>${p.local.tri}</span>${sc(p.local.tri)}</div>
+      <div class="h ${e?.estado === "in" ? "vivo" : ""}">${e ? esc(e.estado === "pre" ? hora(p.hora_utc) + " h" : e.detalle) : hora(p.hora_utc) + " h"}</div></div>`;
+  }).join("");
+  return `<h2>Tus apuestas</h2>${pend.length ? pend.map(tarjetaApuesta).join("") : '<div class="t vacio">No tenés apuestas pendientes.</div>'}
+    <h2>Partidos</h2><div class="partidos">${partidos || '<div class="vacio">Sin partidos.</div>'}</div>`;
+}
+
+function filaPata(x) {
+  return `<div class="fila"><div><div><b>${esc(x.jugador)}</b> <span class="apag">${esc(x.equipo || "")}</span></div>
+    <div class="sub">${esc(lineaTxt(x))} · ${esc(x.partido || "")} · ${x.arriba}/${x.n}</div></div>
+    <div style="text-align:right"><div class="ch ok-t">${pct(x.chance)}</div><div class="sub">${nf(x.cuota, 2)}</div></div></div>`;
+}
+function vistaPisos() {
+  const p = S.datos.pisos || {}, combos = p.combinadas || {}, ks = Object.keys(combos);
+  if (!S.obj || !combos[S.obj]) S.obj = ks[0];
+  const c = combos[S.obj];
+  const sueltas = (p.patas || []).slice(0, 25);
+  return `<h2>Combinada de pisos</h2>
+    ${ks.length ? `<div class="chips">${ks.map((k) => `<button data-obj="${k}" class="${S.obj === k ? "si" : ""}">Cuota ${k}</button>`).join("")}</div>` : ""}
+    ${c ? (c.falta ? `<div class="t vacio">${esc(c.falta)}</div>` : `<div class="kpis"><div class="kpi"><small>Cuota</small><b>${nf(c.cuota, 2)}</b></div><div class="kpi"><small>Chance</small><b>${pct(c.chance)}</b></div><div class="kpi"><small>Patas</small><b>${c.patas.length}</b></div></div>
+      <div class="t">${c.patas.map(filaPata).join("")}</div>`)
+      : '<div class="t vacio">La PC todavía no armó la combinada de hoy: hace falta que lea las cuotas de Stake.</div>'}
+    ${sueltas.length ? `<h2>Patas más seguras</h2><div class="t">${sueltas.map(filaPata).join("")}</div>` : ""}`;
+}
+
+function vistaSenales() {
+  const s = S.datos.senales || {}; let lista = s.senales || [];
+  const stats = [...new Set(lista.map((x) => x.stat))];
+  if (S.filtroSen !== "todas") lista = lista.filter((x) => x.stat === S.filtroSen);
+  const les = s.lesiones || [];
+  return `<h2>Señales del día</h2>
+    <div class="chips">${["todas", ...stats].map((k) => `<button data-fs="${k}" class="${S.filtroSen === k ? "si" : ""}">${k === "todas" ? "Todas" : STAT[k] || k}</button>`).join("")}</div>
+    <div class="t">${lista.length ? lista.map((x) => `<div class="fila"><div><div><b>${esc(x.nombre)}</b> <span class="apag">${esc(x.equipo)} vs ${esc(x.rival)}</span>${x.dudoso ? ' <span class="amb-t">dudoso</span>' : ""}</div>
+      <div class="sub">${esc(lineaTxt(x))} · ${x.historial ? `${x.historial.arriba}/${x.historial.n}` : ""} · esperado ${nf(x.esperado)}</div>
+      ${(x.motivos || []).slice(0, 1).map((m) => `<div class="motivo">${esc(m.texto)}</div>`).join("")}</div>
+      <div class="ch ${x.chance >= .65 ? "ok-t" : ""}">${pct(x.chance)}</div></div>`).join("") : '<div class="vacio">Sin señales.</div>'}</div>
+    ${les.length ? `<h2>Bajas</h2><div class="t">${les.filter((x) => x.estado !== "disponible").slice(0, 60).map((x) => `<div class="fila"><div><b>${esc(x.nombre)}</b> <span class="apag">${esc(x.tricode)}</span><div class="sub">${esc(x.detalle || "")}</div></div>
+      <span class="${x.estado === "afuera" ? "mal-t" : "amb-t"}">${esc(x.estado_fuente || x.estado)}</span></div>`).join("")}</div>` : ""}`;
+}
+
+function vistaUnidades() {
+  const u = S.datos.unidades || {}, r = u.resumen || {};
+  return `<h2>Unidades</h2>
+    <div class="kpis"><div class="kpi"><small>Resultado</small><b class="${r.resultado >= 0 ? "ok-t" : "mal-t"}">${r.resultado >= 0 ? "+" : ""}${nf(r.resultado)} u</b></div>
+      <div class="kpi"><small>Acierto</small><b>${pct(r.acierto)}</b></div><div class="kpi"><small>Yield</small><b>${pct(r.yield)}</b></div></div>
+    ${curva(u.curva || [])}
+    <h2>Últimas</h2>${(u.cerradas || []).map((a) => `<div class="t"><div class="fila" style="border:0;padding:0"><div><b>${nf(a.cuota_final || a.cuota, 2)}</b> <span class="apag">${nf(a.unidades)} u · ${esc(a.fecha)}</span>
+      <div class="sub">${a.piernas.map((p) => `<span class="${p.estado === "ganada" ? "ok-t" : p.estado === "perdida" ? "mal-t" : ""}">${esc(p.jugador || "")} ${esc(lineaTxt(p))}</span>`).join(" · ")}</div></div>
+      <b class="${a.resultado > 0 ? "ok-t" : a.resultado < 0 ? "mal-t" : ""}">${a.resultado > 0 ? "+" : ""}${nf(a.resultado)}</b></div></div>`).join("")}`;
+}
+function curva(pts) {
+  if (pts.length < 2) return "";
+  const ys = pts.map((p) => p.acum), mn = Math.min(0, ...ys), mx = Math.max(0, ...ys), W = 340, H = 110;
+  const X = (i) => i / (pts.length - 1) * W, Y = (v) => H - 6 - (v - mn) / ((mx - mn) || 1) * (H - 12);
+  const d = pts.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(p.acum).toFixed(1)}`).join("");
+  return `<div class="t"><svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}"><line x1="0" x2="${W}" y1="${Y(0)}" y2="${Y(0)}" stroke="rgba(255,255,255,.15)" stroke-dasharray="3 4"/>
+    <path d="${d}" fill="none" stroke="#9d8cff" stroke-width="2.5" stroke-linejoin="round"/></svg></div>`;
+}
+
+function vistaBuscar() {
+  const b = S.datos.buscador;
+  if (!b) return '<div class="t vacio">La PC todavía no subió jugadores y equipos.</div>';
+  if (S.fichaJ) return fichaJugador(b.jugadores.find((j) => j.id === S.fichaJ));
+  if (S.fichaE) return fichaEquipo(b.equipos.find((e) => e.id === S.fichaE));
+  const q = norm(S.q || "");
+  const eqs = q ? b.equipos.filter((e) => norm(e.t).includes(q)) : [];
+  const jug = q ? b.jugadores.filter((j) => norm(j.n).includes(q) || norm(j.e) === q).slice(0, 30) : b.jugadores.slice(0, 15);
+  return `<div class="busca"><input id="q" type="search" placeholder="Jugador o equipo (NYK, Brunson…)" value="${esc(S.q || "")}" autocomplete="off" autocorrect="off" spellcheck="false"></div>
+    ${eqs.length ? `<h2>Equipos</h2><div class="t">${eqs.map((e) => `<div class="res" data-fe="${e.id}"><b>${e.t}</b><span class="apag">${e.w}-${e.l}</span></div>`).join("")}</div>` : ""}
+    <h2>${q ? "Jugadores" : "Los que más anotan"}</h2>
+    <div class="t">${jug.length ? jug.map((j) => `<div class="res" data-fj="${j.id}"><div><b>${esc(j.n)}</b> <span class="apag">${j.e} · ${esc(j.p || "")}</span></div>
+      <span class="apag">${nf(j.prom[1])} · ${nf(j.prom[2])} · ${nf(j.prom[3])}</span></div>`).join("") : '<div class="vacio">Nada con ese nombre.</div>'}</div>`;
+}
+function fichaJugador(j) {
+  if (!j) return "";
+  const pend = (S.datos.unidades?.pendientes || []).flatMap((a) => a.piernas).filter((p) => p.player_id === j.id && p.estado === "pendiente");
+  const hoy = (S.datos.senales?.senales || []).filter((x) => x.player_id === j.id);
+  const pra = j.ult.map((u) => u[3] + u[4] + u[5]);
+  return `<button class="volver" data-volver>‹ Buscar</button>
+    <div class="cab" style="padding:8px 0 4px"><h1 style="font-size:28px">${esc(j.n)}</h1></div><div class="apag" style="margin-bottom:12px">${j.e} · ${esc(j.p || "")} · ${j.pj} partidos</div>
+    <div class="kpis"><div class="kpi"><small>PTS</small><b>${nf(j.prom[1])}</b></div><div class="kpi"><small>REB</small><b>${nf(j.prom[2])}</b></div><div class="kpi"><small>AST</small><b>${nf(j.prom[3])}</b></div>
+      <div class="kpi"><small>PRA</small><b>${nf(j.prom[1] + j.prom[2] + j.prom[3])}</b></div><div class="kpi"><small>Triples</small><b>${nf(j.prom[4])}</b></div><div class="kpi"><small>Min</small><b>${nf(j.prom[0])}</b></div></div>
+    ${pend.length ? `<h2>En tus apuestas</h2><div class="t">${pend.map((p) => `<div class="fila"><span>${esc(lineaTxt(p))}</span><span class="apag">${esc(p.partido || "")}</span></div>`).join("")}</div>` : ""}
+    ${hoy.length ? `<h2>Señales de hoy</h2><div class="t">${hoy.map((x) => `<div class="fila"><span>${esc(lineaTxt(x))}</span><b class="ok-t">${pct(x.chance)}</b></div>`).join("")}</div>` : ""}
+    <h2>Últimos ${j.ult.length}</h2><div class="t" style="padding:6px 12px"><table class="tabla"><tr><th>Fecha</th><th>Rival</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>3PM</th><th>PRA</th></tr>
+      ${j.ult.map((u, i) => `<tr><td class="apag">${u[0].split("-").reverse().join("/")}</td><td>${esc(u[1])}</td><td class="apag">${u[2]}</td><td>${u[3]}</td><td>${u[4]}</td><td>${u[5]}</td><td>${u[6]}</td><td><b>${pra[i]}</b></td></tr>`).join("")}</table></div>`;
+}
+function fichaEquipo(e) {
+  if (!e) return "";
+  const jug = S.datos.buscador.jugadores.filter((j) => j.e === e.t).slice(0, 12);
+  return `<button class="volver" data-volver>‹ Buscar</button>
+    <div class="cab" style="padding:8px 0 4px"><h1 style="font-size:28px">${e.t}</h1></div><div class="apag" style="margin-bottom:12px">${e.w}-${e.l}</div>
+    <div class="kpis"><div class="kpi"><small>Puntos</small><b>${nf(e.pts)}</b></div><div class="kpi"><small>Ritmo</small><b>${nf(e.pace)}</b></div><div class="kpi"><small>Def. rating</small><b>${nf(e.def)}</b></div></div>
+    <h2>Últimos partidos</h2><div class="t">${e.ult.map((u) => `<div class="fila"><span><span class="apag">${u[0].split("-").reverse().join("/")}</span> ${esc(u[1])}</span>
+      <b class="${u[2] === "W" ? "ok-t" : "mal-t"}">${u[2] === "W" ? "G" : "P"} ${u[3]}-${u[4]}</b></div>`).join("")}</div>
+    <h2>Jugadores</h2><div class="t">${jug.map((j) => `<div class="res" data-fj="${j.id}"><b>${esc(j.n)}</b><span class="apag">${nf(j.prom[1])} · ${nf(j.prom[2])} · ${nf(j.prom[3])}</span></div>`).join("")}</div>`;
+}
+
+const ICONOS = {
+  hoy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>',
+  pisos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h16M6 16h12M8 12h8M10 8h4"/></svg>',
+  senales: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 20v-5M10 20V10M15 20V6M20 20V3"/></svg>',
+  buscar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>',
+  unidades: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3 3 7 3s7-1.3 7-3v-6"/></svg>',
+};
+const NOMBRES = { hoy: "Hoy", pisos: "Pisos", buscar: "Buscar", senales: "Señales", unidades: "Unidades" };
+
+function pintar() {
+  const foco = document.activeElement?.id === "q" ? document.activeElement.selectionStart : null;
+  pintarYa();
+  if (foco != null) { const q = document.getElementById("q"); if (q) { q.focus(); q.setSelectionRange(foco, foco); } }
+}
+function pintarYa() {
+  const app = document.getElementById("app");
+  if (!leerClave()) {
+    app.innerHTML = `<form class="login" id="login"><h1>Stats NBA</h1><div class="apag">Poné la contraseña que elegiste en Ajustes de la app de la PC.</div>
+      ${S.error ? `<div class="aviso">${esc(S.error)}</div>` : ""}<input type="password" id="clave" placeholder="Contraseña" autocomplete="current-password"><button class="boton">Entrar</button></form>`;
+    document.getElementById("login").onsubmit = (e) => { e.preventDefault(); guardarClave(document.getElementById("clave").value); S.error = null; app.innerHTML = '<div class="login"><div class="apag">Abriendo…</div></div>'; cargar(); };
+    return;
+  }
+  if (!S.datos) { app.innerHTML = `<div class="login">${S.error ? `<div class="aviso">${esc(S.error)}</div>` : '<div class="apag">Cargando…</div>'}</div>`; return; }
+  const g = new Date(S.datos.generada), min = Math.round((Date.now() - g) / 60000);
+  const hace = min < 2 ? "recién" : min < 60 ? `hace ${min} min` : min < 1440 ? `hace ${Math.round(min / 60)} h` : g.toLocaleDateString("es-AR");
+  const cuerpo = { hoy: vistaHoy, pisos: vistaPisos, buscar: vistaBuscar, senales: vistaSenales, unidades: vistaUnidades }[S.vista]();
+  app.innerHTML = `<div class="cab"><h1>${NOMBRES[S.vista]}</h1><div class="estado">Datos de la PC<br><b>${hace}</b></div></div>
+    <main>${min > 180 ? `<div class="aviso">La PC no sube datos desde ${hace}. Lo en vivo (ESPN) sí está al día.</div>` : ""}${cuerpo}</main>
+    <nav>${Object.keys(NOMBRES).map((k) => `<button data-v="${k}" class="${S.vista === k ? "si" : ""}">${ICONOS[k]}${NOMBRES[k]}</button>`).join("")}</nav>`;
+}
+document.addEventListener("click", (e) => {
+  const v = e.target.closest("[data-v]"); if (v) { if (v.dataset.v === "buscar" && S.vista === "buscar") { S.fichaJ = S.fichaE = null; } S.vista = v.dataset.v; pintar(); scrollTo(0, 0); if (S.vista === "buscar" && !S.fichaJ && !S.fichaE) document.getElementById("q")?.focus(); }
+  const f = e.target.closest("[data-fs]"); if (f) { S.filtroSen = f.dataset.fs; pintar(); }
+  const fj = e.target.closest("[data-fj]"); if (fj) { S.fichaJ = +fj.dataset.fj; S.fichaE = null; S.vista = "buscar"; pintar(); scrollTo(0, 0); }
+  const fe = e.target.closest("[data-fe]"); if (fe) { S.fichaE = +fe.dataset.fe; S.fichaJ = null; pintar(); scrollTo(0, 0); }
+  if (e.target.closest("[data-volver]")) { S.fichaJ = S.fichaE = null; pintar(); }
+  const o = e.target.closest("[data-obj]"); if (o) { S.obj = o.dataset.obj; pintar(); }
+});
+document.addEventListener("input", (e) => {
+  if (e.target.id !== "q") return;
+  S.q = e.target.value; pintar();
+});
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { cargar(); } });
+setInterval(() => { if (!document.hidden && document.activeElement?.id !== "q") cargar(); }, 120000);
+cargar();
+</script>
+</body>
+</html>
