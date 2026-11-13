@@ -8,7 +8,36 @@
 (function () {
   const [USUARIO, REPO] = [location.hostname.split(".")[0], location.pathname.split("/").filter(Boolean)[0] || ""];
   const API = `https://api.github.com/repos/${USUARIO}/${REPO}`;
-  const M = { paq: { base: null, dia: null, vivo: null }, shas: {}, token: null, claves: null, listo: false, ultimo: 0 };
+  const M = { paq: { base: null, dia: null, vivo: null, jugadores: null, yo: null }, shas: {}, token: null, claves: {}, listo: false,
+    sb: null, dueno: false, clave: {}, res: null, filas: [] };
+  const SB = "https://oibjogtgszmyrywysgil.supabase.co";
+  const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9pYmpvZ3Rnc3pteXJ5d3lzZ2lsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQ1OTk0NDYsImV4cCI6MjExMDE3NTQ0Nn0.QGXV36bj6-xDnwRkA_WNKziAQrQeMwnLCD2VpUeGUtM";
+  const DOMINIO = "statsnba.app";
+  const guardarLocal = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const leerLocal = (k) => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
+  async function sbAuth(cuerpo, tipo) {
+    const r = await fetch(`${SB}/auth/v1/token?grant_type=${tipo}`, { method: "POST", headers: { apikey: SB_ANON, "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) });
+    if (!r.ok) throw new Error(tipo === "password" ? "usuario" : "sesion");
+    const d = await r.json();
+    M.sb = { token: d.access_token, refresh: d.refresh_token, vence: Date.now() + (d.expires_in || 3600) * 1000 - 120000, uid: d.user?.id,
+      email: (d.user?.email || "").replace("@" + DOMINIO, "") };
+    guardarLocal("sb", M.sb);
+    return M.sb;
+  }
+  async function sbToken() {
+    if (!M.sb) M.sb = leerLocal("sb");
+    if (!M.sb) throw new Error("sesion");
+    if (Date.now() > M.sb.vence) await sbAuth({ refresh_token: M.sb.refresh }, "refresh_token");
+    return M.sb.token;
+  }
+  async function sb(metodo, ruta, cuerpo, extra) {
+    const tok = await sbToken();
+    const r = await fetch(SB + ruta, { method: metodo, headers: { apikey: SB_ANON, Authorization: "Bearer " + tok, "Content-Type": "application/json", ...(extra || {}) },
+      body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo) });
+    if (!r.ok) throw new Error("Supabase respondió " + r.status);
+    const t = await r.text();
+    return t ? JSON.parse(t) : null;
+  }
   window.__movil = M;
 
   // ---------------------------------------------------------------- SHA-256 (sincrónico, para el flujo)
@@ -43,18 +72,17 @@
 
   // ---------------------------------------------------------------- cifrado
   const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-  const leerClave = () => { try { return localStorage.getItem("clave"); } catch (e) { return M.claveMem; } };
-  const guardarClave = (c) => { M.claveMem = c; try { c ? localStorage.setItem("clave", c) : localStorage.removeItem("clave"); } catch (e) {} };
   async function claves(clave, sal, it) {
-    if (M.claves && M.claves.sal === sal) return M.claves;
+    const kk = clave + "|" + sal;
+    if (M.claves[kk]) return M.claves[kk];
     const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(clave), "PBKDF2", false, ["deriveBits"]);
     const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: b64(sal), iterations: it }, base, 512));
     const km = await crypto.subtle.importKey("raw", bits.slice(32), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-    M.claves = { sal, ke: bits.slice(0, 32), km };
-    return M.claves;
+    M.claves[kk] = { ke: bits.slice(0, 32), km };
+    return M.claves[kk];
   }
-  async function descifrar(caja) {
-    const { ke, km } = await claves(leerClave(), caja.sal, caja.it);
+  async function descifrar(caja, clave) {
+    const { ke, km } = await claves(clave, caja.sal, caja.it);
     const nonce = b64(caja.nonce), ct = b64(caja.ct);
     const junto = new Uint8Array(16 + ct.length); junto.set(nonce); junto.set(ct, 16);
     const mac = new Uint8Array(await crypto.subtle.sign("HMAC", km, junto)), esp = b64(caja.mac);
@@ -76,6 +104,7 @@
     if (M.token) h.Authorization = "Bearer " + M.token;
     const r = await fetch(url, { headers: h, cache: "no-store" });
     if (r.status === 401 && M.token) { M.token = null; return gh(url, raw); }
+    if (r.status === 403 && /rate limit/i.test(await r.clone().text())) throw new Error("GitHub limitó las consultas; probá en un rato.");
     if (!r.ok) throw new Error(r.status === 403 ? "GitHub limitó las consultas; probá en un rato." : r.status === 404 ? "Todavía no hay datos de la PC." : "GitHub respondió " + r.status);
     return raw ? r.text() : r.json();
   }
@@ -85,9 +114,9 @@
     for (const n of cuales) {
       const it = arbol.tree.find((x) => x.path === n + ".json");
       if (!it || M.shas[n] === it.sha) continue;
-      const d = await descifrar(JSON.parse(await gh(`${API}/git/blobs/${it.sha}`, true)));
+      if (n === "yo" && !M.clave.yo) continue;
+      const d = await descifrar(JSON.parse(await gh(`${API}/git/blobs/${it.sha}`, true)), n === "yo" ? M.clave.yo : M.clave.comun);
       M.paq[n] = d; M.shas[n] = it.sha; cambiaron.push(n);
-      if (n === "dia" && d._token) M.token = d._token;
     }
     return cambiaron;
   }
@@ -108,6 +137,9 @@
 
   // los perfiles de todos los jugadores van en un paquete aparte que se baja la primera vez que hace falta
   async function responderAsync(m, a) {
+    if (!M.dueno && ["guardar_apuesta", "borrar_apuesta", "marcar_apuesta", "config_unidades"].includes(m)) {
+      try { const w = await escribirAmigo(m, a); if (w) return w; } catch (e) { return { error: "No se pudo guardar: " + e.message }; }
+    }
     let r = responder(m, a);
     if (r === FALTA && ["perfil", "versus"].includes(m) && !M.paq.jugadores) {
       try { await traer(["jugadores"]); } catch (e) {}
@@ -116,18 +148,72 @@
     if (r === FALTA && m === "tiros") return { error: "El mapa de tiros de este jugador solo está en la PC (el celular tiene los de hoy, favoritos y apuestas)." };
     return r;
   }
+  // ---------------------------------------------------------------- las apuestas de un amigo (Supabase)
+  async function cargarAmigo() {
+    if (M.dueno || !M.sb) return;
+    try {
+      const [res, filas] = await Promise.all([sb("GET", "/rest/v1/resultados?select=unidades,vivo,actualizado"), sb("GET", "/rest/v1/apuestas?select=id,datos,creada&order=id")]);
+      M.res = (res && res[0]) || null; M.filas = filas || [];
+    } catch (e) {}
+  }
+  function unidadesAmigo() {
+    const base = (M.res && M.res.unidades) || { apuestas: [], resumen: { n: 0, ganadas: 0, perdidas: 0, nulas: 0, pendientes: 0, acierto: null, apostado: 0, resultado: 0, yield: null, cuota_promedio: null, racha: { estado: null, n: 0 }, en_juego: 0, a_ganar: 0 },
+      curva: { puntos: [], maximo: 0, peor_caida: { caida: 0 } }, desgloses: {}, por_pierna: {}, anotador: [], deportes: ["NBA"] };
+    const vistas = new Set((base.apuestas || []).map((x) => x.id));
+    const nuevas = M.filas.filter((f) => !vistas.has(f.id)).map((f) => {
+      const d = f.datos || {}, ps = (d.piernas || []).map((p, i) => ({ ...p, id: f.id * 100 + i, orden: i, estado: "pendiente", deporte: p.deporte || "NBA" }));
+      return { id: f.id, creada: f.creada, fecha: d.fecha || (f.creada || "").slice(0, 10), cuota: +d.cuota || (ps[0] && +ps[0].cuota) || 0, unidades: +d.unidades || 1,
+        casa: d.casa || null, nota: d.nota || null, estado: "pendiente", manual: 0, cuota_final: +d.cuota || 0, aviso: "Se procesa cuando la PC esté abierta.",
+        grupos: d.grupos || null, piernas: ps, tipo: ps.length > 1 ? "parlay" : "simple", deporte: "NBA", resultado: 0 };
+    });
+    const conf = leerLocal("config_unidades") || {};
+    return { ...base, apuestas: [...nuevas, ...(base.apuestas || []).filter((x) => M.filas.some((f) => f.id === x.id))], total: (base.total || 0) + nuevas.length,
+      config: { valor_unidad: conf.valor_unidad ?? null, moneda: conf.moneda || "$" } };
+  }
+  async function escribirAmigo(m, a) {
+    if (m === "guardar_apuesta") {
+      const d = { ...(a[0] || {}) };
+      if (!d.piernas || !d.piernas.length) return { error: "La apuesta no tiene piernas" };
+      if (d.id) { const id = d.id; delete d.id; await sb("PATCH", `/rest/v1/apuestas?id=eq.${id}`, { datos: d }); await cargarAmigo(); return { id }; }
+      const r = await sb("POST", "/rest/v1/apuestas", { datos: d }, { Prefer: "return=representation" });
+      await cargarAmigo();
+      return { id: r && r[0] && r[0].id };
+    }
+    if (m === "borrar_apuesta") { await sb("DELETE", `/rest/v1/apuestas?id=eq.${a[0]}`); await cargarAmigo(); return {}; }
+    if (m === "marcar_apuesta") {
+      const [tipo, id, estado] = a;
+      if (tipo !== "apuesta") return { error: "Desde la web se marca la apuesta entera, no cada pata." };
+      const f = M.filas.find((x) => x.id === id); if (!f) return {};
+      await sb("PATCH", `/rest/v1/apuestas?id=eq.${id}`, { datos: { ...f.datos, _estado: estado || undefined } }); await cargarAmigo(); return {};
+    }
+    if (m === "config_unidades") { const c = leerLocal("config_unidades") || {}; if (a[0] !== undefined) c.valor_unidad = a[0]; if (a[1]) c.moneda = a[1]; guardarLocal("config_unidades", c); return {}; }
+    return null;
+  }
+  const PERSONAL = new Set(["unidades", "favoritos", "vivo_apuestas", "alertas_bandeja"]);
+  function responderPersonal(m, a) {
+    if (M.dueno) {
+      const y = M.paq.yo || {};
+      if (m === "unidades" || m === "favoritos" || m === "vivo_apuestas" || m === "alertas_bandeja") return y[k(m)] ?? (m === "alertas_bandeja" ? { alertas: [], sin_leer: 0 } : FALTA);
+      return undefined;
+    }
+    if (m === "unidades") return unidadesAmigo();
+    if (m === "vivo_apuestas") return { apuestas: (M.res && M.res.vivo && M.res.vivo.apuestas) || [], version: 0 };
+    if (m === "favoritos") return { jugadores: [], hoy: [] };
+    if (m === "alertas_bandeja") return { alertas: [], sin_leer: 0 };
+    return undefined;
+  }
   function responder(m, a) {
+    if (PERSONAL.has(m)) { const r = responderPersonal(m, a); if (r !== undefined) return r; }
     if (m === "guardar_prefs") { try { localStorage.setItem(PREFS, JSON.stringify(a[0])); } catch (e) {} return {}; }
     if (SOLO_PC.has(m)) return { error: "Desde el celular solo se mira: esto se hace en la app de la PC." };
     if (m === "actualizar" || m === "alertas_leidas" || m === "alertas_silenciar") return {};
     if (m === "estado_actualizacion") return { corriendo: false, cambios: 0, resumen: null };
     if (m === "telegram_estado") return { configurado: false };
-    if (m === "movil_estado") return { configurado: true, web: location.href, celular: true };
+    if (m === "movil_estado") return { celular: true, usuario: M.sb && M.sb.email };
     if (m === "copia_claude") return {};
     if (m === "vivo_medicion") return {};
     if (m === "inicio") {
       const d = { ...(buscar(k("inicio")) || {}) };
-      d.prefs = prefs() || { ...(d.prefs || {}), ultima_ruta: { s: "inicio" } };
       d.imagenes = "cdn";
       return d;
     }
@@ -135,6 +221,7 @@
       const r = buscar(k("vivo_resumen", -1));
       if (!r) return { version: 0, en_juego: 0, alertas_nuevas: [], sin_leer: 0, ultimo_alerta: 0 };
       const out = { ...r, alertas_nuevas: [], ultimo_alerta: r.ultimo_alerta };
+      if (M.dueno && M.paq.yo) out.favoritos = M.paq.yo._favoritos_vivo || out.favoritos;
       if (a[0] === r.version) { delete out.marcador; delete out.favoritos; }
       return out;
     }
@@ -143,6 +230,11 @@
       const res = buscar(k("vivo_resumen", -1)) || {};
       if (!r) return { version: res.version || 0, hay: false, marcador: (res.marcador || []).find((x) => x.game_id === String(a[0])) || null };
       if (a[1] === r.version) return { version: r.version, igual: true };
+      if (M.dueno && M.paq.yo) return { ...r, ...(M.paq.yo[k("vivo_partido_yo", String(a[0]))] || {}) };
+      if (!M.dueno && M.res && M.res.vivo) {
+        const gid = String(a[0]);
+        return { ...r, apuestas: (M.res.vivo.apuestas || []).filter((x) => x.patas.some((p) => (p.vivo || {}).game_id === gid || p.game_id === gid)) };
+      }
       return r;
     }
     if (m === "pisos") {
@@ -175,21 +267,40 @@
   }
   function pedirClave(error) {
     const el = pantalla(`<form id="movil-form"><div class="me-logo"></div><h1>Stats NBA</h1>
-      <p>Poné la contraseña que elegiste en Ajustes de la app de la PC.</p>${error ? `<div class="me-error">${error}</div>` : ""}
+      <p>Entrá con tu usuario y contraseña.</p>${error ? `<div class="me-error">${error}</div>` : ""}
+      <input id="movil-usuario" placeholder="Usuario" autocapitalize="none" autocorrect="off" autocomplete="username" spellcheck="false">
       <input type="password" id="movil-clave" placeholder="Contraseña" autocomplete="current-password"><button>Entrar</button></form>`);
-    el.querySelector("form").onsubmit = (e) => { e.preventDefault(); guardarClave(el.querySelector("input").value); arrancar(); };
+    el.querySelector("form").onsubmit = async (e) => {
+      e.preventDefault();
+      const u = el.querySelector("#movil-usuario").value.trim().toLowerCase(), c = el.querySelector("#movil-clave").value;
+      try { await sbAuth({ email: u.includes("@") ? u : `${u}@${DOMINIO}`, password: c }, "password"); }
+      catch (err) { return pedirClave("Usuario o contraseña incorrectos."); }
+      arrancar();
+    };
+  }
+  async function claves_de_la_cuenta() {
+    const [conf, propias] = await Promise.all([sb("GET", "/rest/v1/config?select=clave,valor"), sb("GET", "/rest/v1/config_dueno?select=clave,valor")]);
+    const c = Object.fromEntries((conf || []).map((x) => [x.clave, x.valor])), p = Object.fromEntries((propias || []).map((x) => [x.clave, x.valor]));
+    if (!c.clave_comun) throw new Error("La PC todavía no publicó los datos para las cuentas. Abrí la app en la PC y esperá un par de minutos.");
+    M.clave = { comun: c.clave_comun, yo: p.clave_yo || null };
+    M.dueno = !!p.clave_yo;
+    M.token = c.token_lectura || null;
   }
   async function arrancar() {
-    if (!leerClave()) return pedirClave();
-    pantalla('<div class="me-cargando"><div class="me-logo"></div><p>Abriendo los datos de la PC…</p></div>');
+    if (!leerLocal("sb")) return pedirClave();
+    pantalla('<div class="me-cargando"><div class="me-logo"></div><p>Abriendo…</p></div>');
     try {
+      await claves_de_la_cuenta();
       await traer(["dia"]);
-      await traer(["base", "vivo"]);
+      await traer(M.dueno ? ["base", "vivo", "yo"] : ["base", "vivo"]);
+      await cargarAmigo();
     } catch (e) {
-      if (e.message === "clave") { guardarClave(null); M.claves = null; return pedirClave("Contraseña incorrecta."); }
+      if (e.message === "sesion") { guardarLocal("sb", null); M.sb = null; return pedirClave("Volvé a entrar."); }
+      if (e.message === "clave") return pantalla('<div class="me-cargando"><p>Los datos están cifrados con otra clave: abrí la app en la PC para que los vuelva a subir.</p><button onclick="location.reload()">Reintentar</button></div>');
       return pantalla(`<div class="me-cargando"><p>${e.message || "No se pudieron leer los datos."}</p><button onclick="location.reload()">Reintentar</button></div>`);
     }
     document.getElementById("movil-entrada")?.remove();
+    document.body.classList.toggle("movil-amigo", !M.dueno);
     M.listo = true;
     instalar();
     window.dispatchEvent(new Event("pywebviewready"));
@@ -199,7 +310,11 @@
   async function ciclo() {
     clearTimeout(timer);
     let cambiaron = [];
-    try { cambiaron = await traer(M.paq.jugadores ? ["vivo", "dia", "base", "jugadores"] : ["vivo", "dia", "base"]); M.error = null; } catch (e) { M.error = e.message; }
+    try {
+      const l = ["vivo", "dia", "base"]; if (M.dueno) l.push("yo"); if (M.paq.jugadores) l.push("jugadores");
+      cambiaron = await traer(l); M.error = null;
+      if (!M.dueno) { const antes = JSON.stringify([M.res && M.res.actualizado, M.filas.length]); await cargarAmigo(); if (antes !== JSON.stringify([M.res && M.res.actualizado, M.filas.length])) cambiaron.push("yo"); }
+    } catch (e) { M.error = e.message; }
     if (cambiaron.length) alCambiar(cambiaron);
     pintarFrescura();
     const enJuego = (M.paq.vivo && M.paq.vivo._en_juego) || 0;
@@ -209,7 +324,7 @@
   function alCambiar(cambiaron) {
     if (typeof S === "undefined" || !S.ruta) return;
     if (cambiaron.includes("base") && typeof cargarDatos === "function") { cargarDatos().then(() => typeof pintar === "function" && pintar()); return; }
-    if (cambiaron.includes("dia")) {
+    if (cambiaron.includes("dia") || cambiaron.includes("yo")) {
       const r = S.ruta.s, enEdicion = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
       if (!enEdicion && ["inicio", "senales", "unidades", "vivo", "favoritos"].includes(r) && typeof pintar === "function") pintar();
     }

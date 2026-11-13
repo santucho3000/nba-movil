@@ -527,11 +527,24 @@ async function pintarMovil() {
   let m = {};
   try { m = await llamar("movil_estado"); } catch (e) { return; }
   if (!caja.isConnected) return;
+  if (m.celular) {
+    caja.innerHTML = `<h4>Tu sesión</h4><p class="apagado">Estás en la web del celular${m.usuario ? ` como <b>${esc(m.usuario)}</b>` : ""}.</p>
+      <div class="fila"><button class="boton" data-msalir>Cerrar sesión</button></div>`;
+    caja.querySelector("[data-msalir]").onclick = () => { try { localStorage.removeItem("sb"); } catch (e) {} location.reload(); };
+    return;
+  }
   const cuerpo = m.configurado
     ? `<p>La PC sube lo último cada 2 minutos mientras la app está abierta. En el celular: <b>${esc(m.web)}</b></p>
        <p class="apagado">${m.ultima ? `Última subida: ${esc(m.ultima.slice(11, 16))} h (${Math.round((m.bytes || 0) / 1024)} KB).` : "Todavía no subió nada."}
        ${m.error ? `<span class="ambar">Error: ${esc(m.error)}</span>` : ""}</p>
-       <div class="fila"><button class="boton primario" data-msubir>Subir ahora</button><span class="espacio"></span><button class="enlace" data-mborrar>Desconectar</button></div>`
+       <div class="fila"><button class="boton primario" data-msubir>Subir ahora</button><span class="espacio"></span><button class="enlace" data-mborrar>Desconectar</button></div>
+       <h4 style="margin-top:18px">Cuentas de amigos</h4>
+       ${m.cuenta ? `<p>Tu cuenta: <b>${esc(m.cuenta)}</b>. ${m.nube?.amigos ? `Procesando las apuestas de ${m.nube.amigos} amigo(s)` : "Todavía ningún amigo cargó apuestas"}${m.nube?.ultima ? ` (última vez ${esc(m.nube.ultima)})` : ""}.
+           ${m.lectura ? "" : '<span class="ambar">Falta la llave de lectura de GitHub: sin ella tus amigos no pueden seguir el en vivo.</span>'}</p>
+           ${m.nube?.error ? `<p class="ambar">Error: ${esc(m.nube.error)}</p>` : ""}` : `<p class="apagado">Tu usuario y contraseña de la web (los de Supabase) y la llave de solo lectura de GitHub. Con eso la PC procesa las apuestas de tus amigos.</p>`}
+       <div class="fila"><input class="control" data-musuario placeholder="Tu usuario" value="${esc(m.cuenta || "")}" style="flex:1"><input class="control" data-mclavesb type="password" placeholder="Tu contraseña" style="flex:1"></div>
+       <div class="fila"><input class="control" data-mlectura placeholder="Llave de lectura de GitHub (github_pat_…)" autocomplete="off" spellcheck="false" style="flex:1">
+         <button class="boton" data-mcuenta>Guardar</button></div>`
     : `<p class="apagado">Necesita un repositorio público de GitHub con Pages y un token con permiso de escritura solo en ese repositorio. Los datos van cifrados con tu contraseña.</p>
        <div class="fila"><input class="control" data-mrepo placeholder="usuario/repositorio" spellcheck="false" style="flex:1"></div>
        <div class="fila"><input class="control" data-mtoken placeholder="Token de GitHub (github_pat_…)" autocomplete="off" spellcheck="false" style="flex:1"></div>
@@ -550,6 +563,14 @@ document.addEventListener("click", async (e) => {
     t.disabled = true; t.textContent = "Conectando…";
     const r = await llamar("movil_configurar", v("repo"), v("token"), v("clave"));
     if (!r.ok) { t.disabled = false; t.textContent = "Conectar"; return err(r.error); }
+    return pintarMovil();
+  }
+  if (t.closest("[data-mcuenta]")) {
+    const v = (k) => caja.querySelector(`[data-m${k}]`).value.trim();
+    if (!v("usuario") || !v("clavesb")) return err("Poné tu usuario y contraseña de la web.");
+    t.disabled = true; t.textContent = "Probando…";
+    const r = await llamar("movil_cuenta", v("usuario"), v("clavesb"), v("lectura"));
+    if (!r.ok) { t.disabled = false; t.textContent = "Guardar"; return err(r.error); }
     return pintarMovil();
   }
   if (t.closest("[data-msubir]")) { t.disabled = true; t.textContent = "Subiendo…"; const r = await llamar("movil_subir"); await pintarMovil(); if (!r.ok) err(r.error); return; }
