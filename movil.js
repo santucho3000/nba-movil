@@ -99,13 +99,23 @@
     "telegram_probar", "alertas_probar", "movil_configurar", "movil_borrar", "movil_subir", "comparar", "buscar_stat", "chance_linea", "partidos_apuesta"]);
   const k = (m, a) => `${m}|${JSON.stringify(a === undefined ? null : a)}`;
   function buscar(clave) {
-    for (const n of ["vivo", "dia", "base"]) { const p = M.paq[n]; if (p && clave in p) return p[clave]; }
+    for (const n of ["vivo", "dia", "base", "jugadores"]) { const p = M.paq[n]; if (p && clave in p) return p[clave]; }
     return undefined;
   }
   const PREFS = "prefs_movil";
   function prefs() { try { return JSON.parse(localStorage.getItem(PREFS) || "null"); } catch (e) { return null; } }
-  const FALTA = { error: "Esto no está en el celular: la PC sube los jugadores de los partidos de hoy, tus favoritos y los de tus apuestas." };
+  const FALTA = { error: "Esto todavía no está en el celular: la PC lo sube la próxima vez que esté abierta." };
 
+  // los perfiles de todos los jugadores van en un paquete aparte que se baja la primera vez que hace falta
+  async function responderAsync(m, a) {
+    let r = responder(m, a);
+    if (r === FALTA && ["perfil", "versus"].includes(m) && !M.paq.jugadores) {
+      try { await traer(["jugadores"]); } catch (e) {}
+      r = responder(m, a);
+    }
+    if (r === FALTA && m === "tiros") return { error: "El mapa de tiros de este jugador solo está en la PC (el celular tiene los de hoy, favoritos y apuestas)." };
+    return r;
+  }
   function responder(m, a) {
     if (m === "guardar_prefs") { try { localStorage.setItem(PREFS, JSON.stringify(a[0])); } catch (e) {} return {}; }
     if (SOLO_PC.has(m)) return { error: "Desde el celular solo se mira: esto se hace en la app de la PC." };
@@ -153,7 +163,7 @@
   }
 
   function instalar() {
-    window.pywebview = { api: new Proxy({}, { get: (_, m) => (...a) => Promise.resolve(responder(String(m), a)) }) };
+    window.pywebview = { api: new Proxy({}, { get: (_, m) => (...a) => responderAsync(String(m), a) }) };
   }
 
   // ---------------------------------------------------------------- pantalla de entrada y ciclo
@@ -189,7 +199,7 @@
   async function ciclo() {
     clearTimeout(timer);
     let cambiaron = [];
-    try { cambiaron = await traer(["vivo", "dia", "base"]); M.error = null; } catch (e) { M.error = e.message; }
+    try { cambiaron = await traer(M.paq.jugadores ? ["vivo", "dia", "base", "jugadores"] : ["vivo", "dia", "base"]); M.error = null; } catch (e) { M.error = e.message; }
     if (cambiaron.length) alCambiar(cambiaron);
     pintarFrescura();
     const enJuego = (M.paq.vivo && M.paq.vivo._en_juego) || 0;
