@@ -117,3 +117,4 @@ body.movil-viejo #estado-act .punto { background: var(--ambar); }
   .alerta-toast, #aviso { left: 10px; right: 10px; bottom: calc(92px + env(safe-area-inset-bottom)); max-width: none; }
   button, .chip, .pestana { touch-action: manipulation; }
 }
+.solo-pc { display: none !important; }

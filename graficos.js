@@ -146,7 +146,9 @@ function graficoPartidos(caja, opciones) {
       <div class="segmentado graf-stats">${permitidas.map((id) => `<button data-gstat="${id}" class="${id === st.id ? "activo" : ""}">${STAT_G[id].t}</button>`).join("")}</div>
     </div>
     <div class="graf-barra">
-      <div class="segmentado" title="Rango: cambia el filtro de partidos de todo el perfil">
+      ${esCelular() ? `<div class="segmentado" title="Cuántos partidos se ven en el gráfico">${[5, 8, 10, 15, 20].map((v) =>
+        `<button data-gbarras="${v}" class="${barrasCelular() === v ? "activo" : ""}">${v}</button>`).join("")}</div>` : ""}
+      <div class="segmentado${esCelular() ? " solo-pc" : ""}" title="Rango: cambia el filtro de partidos de todo el perfil">
         ${[[5, "Últ. 5"], [10, "Últ. 10"], [20, "Últ. 20"], [null, "Temporada"]].map(([v, t]) =>
           `<button data-grango="${v ?? ""}" class="${(f.ultimos || null) === v && !f.rival ? "activo" : ""}">${t}</button>`).join("")}</div>
       <select class="control" data-grival title="Solo partidos contra un rival">
@@ -181,6 +183,7 @@ function graficoPartidos(caja, opciones) {
     const b = e.target.closest("button");
     if (!b) return;
     if (b.dataset.gstat) { estado.stat = b.dataset.gstat; guardarEstado({}); }
+    else if (b.dataset.gbarras) { try { localStorage.setItem("graf_barras", b.dataset.gbarras); } catch (err) {} guardarEstado({}); }
     else if (b.dataset.grango !== undefined) {
       const fl = fuente.filtros();
       fl.ultimos = b.dataset.grango ? Number(b.dataset.grango) : null;
@@ -218,13 +221,19 @@ function escalaLinda(max) {
   return { tope: Math.ceil(max / paso) * paso, paso };
 }
 
+// celular: cuántas barras entran cómodas (configurable arriba del gráfico; por defecto 8)
+function esCelular() { return window.innerWidth < 560; }
+function barrasCelular() { let v = 8; try { v = Number(localStorage.getItem("graf_barras")) || 8; } catch (e) {} return v; }
+
 function dibujarBarras(lienzo, tip, partidos, st, linea, conPot) {
+  if (esCelular() && partidos.length > barrasCelular()) partidos = partidos.slice(-barrasCelular());
   const n = partidos.length;
   const W = Math.max(320, lienzo.clientWidth);
   if (!n) { lienzo.innerHTML = '<div class="vacio">No hay partidos con estos filtros.</div>'; return; }
   // G-11: dónde cambia la temporada (los partidos van de más viejo a más nuevo)
   const cortes = partidos.map((p, i) => (i > 0 && p.temporada && partidos[i - 1].temporada && p.temporada !== partidos[i - 1].temporada ? i : null)).filter((i) => i != null);
-  const izq = 66, der = 46, arriba = cortes.length ? 40 : 22, alto = 230;
+  const chico = W < 560;                                     // celular: márgenes y letras más chicas, etiqueta en cada barra
+  const izq = chico ? 30 : 66, der = chico ? 36 : 46, arriba = cortes.length ? 40 : 22, alto = 230;
   const esEquipo = partidos[0] && partidos[0].opp_pts !== undefined;
   const filasAbajo = ["fecha", "rival"].concat(esEquipo ? [] : ["min"], conPot ? ["conv", "convpct"] : []);
   const altoFila = 16, H = arriba + alto + 10 + filasAbajo.length * altoFila + 6;
@@ -236,7 +245,7 @@ function dibujarBarras(lienzo, tip, partidos, st, linea, conPot) {
   const { tope, paso } = escalaLinda(maxDato * 1.08);
   const y = (v) => arriba + alto - (v / tope) * alto;
   const cx = (i) => izq + slot * i + slot / 2;
-  const cada = Math.max(1, Math.ceil(40 / slot));            // cada cuántas barras se escribe la etiqueta
+  const cada = Math.max(1, Math.ceil((chico ? 24 : 40) / slot));            // cada cuántas barras se escribe la etiqueta
   const minProm = partidos.reduce((a, p) => a + (p.min || 0), 0) / n;
 
   let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" class="graf-svg" font-family="inherit">`;
@@ -256,7 +265,7 @@ function dibujarBarras(lienzo, tip, partidos, st, linea, conPot) {
   }
   for (let v = 0; v <= tope + 1e-9; v += paso) {
     s += `<line x1="${izq}" x2="${W - der}" y1="${y(v)}" y2="${y(v)}" stroke="${COLOR.grilla}" stroke-width="1"/>
-      <text x="${izq - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="${COLOR.apagado}">${nf0.format(v)}</text>`;
+      <text x="${izq - (chico ? 4 : 8)}" y="${y(v) + 4}" text-anchor="end" font-size="${chico ? 10 : 11}" fill="${COLOR.apagado}">${nf0.format(v)}</text>`;
   }
   const tramo = Math.min(450, n * 35);                       // X-04: las barras crecen una tras otra
   partidos.forEach((p, i) => {
@@ -307,14 +316,14 @@ function dibujarBarras(lienzo, tip, partidos, st, linea, conPot) {
       const poco = p.min != null && p.min < 0.75 * minProm;
       const filas = {
         fecha: [`${dd}/${mm}`, COLOR.tenue],
-        rival: [`${p.local ? "vs" : "@"}${p.rival}`, COLOR.apagado],
+        rival: [chico ? `${p.local ? "" : "@"}${p.rival}` : `${p.local ? "vs" : "@"}${p.rival}`, COLOR.apagado],
         min: [p.min == null ? "—" : nf0.format(Math.round(p.min)), poco ? COLOR.ambar : COLOR.apagado],
         conv: [p[st.id] != null && pots[i] ? `${p[st.id]}/${pots[i]}` : "—", COLOR.tenue],
         convpct: [p[st.id] != null && pots[i] ? `${Math.round(Math.min(1, p[st.id] / pots[i]) * 100)}%` : "", COLOR.apagado],
       };
       filasAbajo.forEach((fila, k) => {
         const [txt, col] = filas[fila];
-        s += `<text x="${cx(i)}" y="${base + k * altoFila + 11}" text-anchor="middle" font-size="10.5" fill="${col}"${poco && fila === "min" ? ' font-weight="700"' : ""}>${esc(txt)}</text>`;
+        s += `<text x="${cx(i)}" y="${base + k * altoFila + 11}" text-anchor="middle" font-size="${chico ? (slot < 30 ? 8.5 : 9.5) : 10.5}" fill="${col}"${poco && fila === "min" ? ' font-weight="700"' : ""}>${esc(txt)}</text>`;
       });
     }
     s += `<rect class="graf-zona" data-i="${i}" x="${izq + slot * i}" y="${arriba}" width="${slot}" height="${H - arriba}" fill="transparent"/>`;
@@ -323,7 +332,7 @@ function dibujarBarras(lienzo, tip, partidos, st, linea, conPot) {
   const base = arriba + alto + 10;
   const titulos = { fecha: "", rival: "", min: "MIN", conv: "Conv.", convpct: "" };
   filasAbajo.forEach((fila, k) => {
-    if (titulos[fila]) s += `<text x="${izq - 8}" y="${base + k * altoFila + 11}" text-anchor="end" font-size="10" font-weight="600" fill="${COLOR.apagado}">${titulos[fila]}</text>`;
+    if (titulos[fila]) s += `<text x="${izq - (chico ? 3 : 8)}" y="${base + k * altoFila + 11}" text-anchor="end" font-size="10" font-weight="600" fill="${COLOR.apagado}">${titulos[fila]}</text>`;
   });
   if (linea != null) {
     s += `<g class="la"><line x1="${izq}" x2="${W - der}" y1="${y(linea)}" y2="${y(linea)}" stroke="${COLOR.texto}" stroke-width="1.2" stroke-dasharray="5 4" opacity=".85"/>
